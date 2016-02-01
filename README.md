@@ -1,5 +1,5 @@
-Cpparse
-=======
+Cpparse (see-plus-parse)
+========================
 
 A posix style command line parser header for C++. Options are similar to
 pythons argparse but built from the ground up to work with modern C++ style
