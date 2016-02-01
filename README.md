@@ -5,6 +5,44 @@ A posix style command line parser header for C++. Options are similar to
 pythons argparse but built from the ground up to work with modern C++ style
 guidelines.
 
+An short program looks something like:
+```cpp
+#include <iostream>
+#include <string>
+#include "cpparse.hxx"
+
+using namespace std;
+using namespace cpparse;
+
+int main(int argc, char** argv) {
+  Parser parser("This program just parses command line arguments");
+  auto& flag = parser.add_flag<>("flag", 'f', true).help("Activate flag");
+  auto& number = parser.add_optargument<int>("num", 'n').help("Set a number");
+  auto& string_arg =
+      parser.add_argument<>("string").help("This is a required string");
+  parser.parse(argc, argv);
+
+  cout << "Flag was " << (flag.get() ? "" : "un" ) << "set, ";
+  cout << "number was " << number.get() << ", and ";
+  cout << "the string arg was \"" << string_arg.get() << '"' << endl;
+}
+```
+
+When compiled `./readme_example -h` produces:
+```
+usage: ./readme_example [-f] [-h] [-n <num>] <string>
+
+This program just parses command line arguments
+
+Positional Arguments:
+  <string>    This is a required string
+
+Optional Arguments:
+  -f, --flag    Activate flag
+  -h, --help    Show this help message and exit
+  -n <num>, --num <num>    Set a number
+```
+
 This is a work in progress because I was frustrated with the lack of nice C++
 command line parsers, and wanted one that used modern nice syntax with type
 safety. As a result, it is missing quite a few features that you might want for

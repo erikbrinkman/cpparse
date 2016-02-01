@@ -1,6 +1,5 @@
 #include <iostream>
 #include <string>
-#include <memory>
 #include "cpparse.hxx"
 
 using namespace std;
@@ -8,8 +7,7 @@ using namespace cpparse;  // Contains all of the parsing objects
 
 int main(int argc, char** argv) {
   // Creates a local parser. These are designed to be stack variables
-  // They are templated on the option character default '-'
-  Parser<> parser("This is a test program with a description!", true);
+  Parser parser("This is a test program with a description!", true);
   // They also take a description (default empty) that will be printed when
   // help is printed, and a boolean (default true) for whether to include a
   // help option.

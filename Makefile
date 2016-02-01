@@ -1,15 +1,23 @@
 CFLAGS = -std=c++14 -O3 -Werror -Wall -Wextra -pedantic
-SOURCES = cpparse.cxx cpparse.hxx example.cxx
+SOURCES = $(wildcard *.cxx) $(wildcard *.hxx)
 
 help:
 	@echo "usage: make <target>"
 	@echo
 	@echo "Targets:"
-	@echo "  example : Compile example program"
-	@echo "  test    : Run tests"
-	@echo "  format  : Format source files with standard style"
+	@echo "  all            : Compile all executables"
+	@echo "  example        : Compile example program"
+	@echo "  readme_example : Compile example program from readme"
+	@echo "  test           : Run tests"
+	@echo "  format         : Format source files with standard style"
+	@echo "  todo           : List all todo flags in sources"
 
-example: $(SOURCES)
+all: example readme_example
+
+example: example.cxx cpparse.cxx cpparse.hxx
+	g++ $(CFLAGS) -o $@ $@.cxx
+
+readme_example: readme_example.cxx cpparse.cxx cpparse.hxx
 	g++ $(CFLAGS) -o $@ $@.cxx
 
 test:

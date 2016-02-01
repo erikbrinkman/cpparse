@@ -11,10 +11,80 @@
 #include <cstdlib>
 
 namespace cpparse {
-// Option types for parsing
-// The ArgReader will return these to indicate what type of option was parsed
-enum class ot { end, argument, short_opt, long_opt, marker };
+// ----------------
+// Usage Formatting
+// ----------------
 
+class Parser::UsageFormatter {
+  friend std::ostream& operator<<(std::ostream& os,
+                                  const UsageFormatter& usage) {
+    return usage.format(os);
+  }
+
+  const Parser& parser;
+  std::ostream& format(std::ostream& os) const {
+    os << "usage: " << parser.program_name;
+    for (const auto& opt : parser.options) {
+      os << " [";
+      if (opt.second->short_name) {
+        os << option_char << opt.second->short_name;
+      } else {
+        os << option_char << option_char << opt.second->name;
+      }
+      opt.second->format_args(os);
+      os << ']';
+    }
+    for (const auto& arg : parser.arguments) {
+      arg->format_args(os);
+    }
+    return os << '\n';
+  }
+
+ public:
+  UsageFormatter(const Parser& parser_) : parser(parser_) {}
+};
+
+// ---------------
+// Help Formatting
+// ---------------
+class Parser::HelpFormatter {
+  friend std::ostream& operator<<(std::ostream& os, const HelpFormatter& help) {
+    return help.format(os);
+  }
+
+  const Parser& parser;
+  const UsageFormatter usage;
+  std::ostream& format(std::ostream& os) const {
+    os << usage << '\n' << parser.description << '\n';
+    if (!parser.arguments.empty()) {
+      os << "\nPositional Arguments:\n";
+      for (const auto& arg : parser.arguments) {
+        os << " ";
+        arg->format_args(os);
+        os << "    " << arg->help_text << '\n';
+      }
+    }
+    if (!parser.options.empty()) {
+      os << "\nOptional Arguments:\n";
+      for (const auto& opt : parser.options) {
+        os << "  ";
+        if (opt.second->short_name) {
+          os << option_char << opt.second->short_name;
+          opt.second->format_args(os);
+          os << ", ";
+        }
+        os << option_char << option_char << opt.second->name;
+        opt.second->format_args(os);
+        os << "    " << opt.second->help_text << '\n';
+      }
+    }
+    return os;
+  }
+
+ public:
+  HelpFormatter(const Parser& parser_)
+      : parser(parser_), usage(parser_.usage()) {}
+};
 // ---------------
 // Argument Reader
 // ---------------
@@ -22,7 +92,12 @@ enum class ot { end, argument, short_opt, long_opt, marker };
 // difference between long and short options as well as handling the -- marker
 // for the end of arguments. This also provides convenience methods for
 // throwing parsing errors.
-template <char C>
+
+// Option types for parsing
+// The ArgReader will return these to indicate what type of option was parsed
+enum class ot { end, argument, short_opt, long_opt, marker };
+
+// Actual ArgReader
 struct ArgReader {
   char** itr;
   char* const* end;
@@ -31,9 +106,9 @@ struct ArgReader {
   std::string::iterator location;  // Current location in `current`
 
   // To help with error throwing
-  typename Parser<C>::UsageFormatter usage;
+  typename Parser::UsageFormatter usage;
 
-  ArgReader(typename Parser<C>::UsageFormatter usage_, int argc, char** argv)
+  ArgReader(typename Parser::UsageFormatter usage_, int argc, char** argv)
       : itr(argv + 1),
         end(argv + argc),
         process_options(true),
@@ -60,23 +135,23 @@ struct ArgReader {
       current.assign(*itr++);
       location = current.begin();
     }
-    if (process_options && current.size() == 2 && current[0] == C &&
-        current[1] == C) {
+    if (process_options && current.size() == 2 && current[0] == option_char &&
+        current[1] == option_char) {
       // No mare args arg
       process_options = false;
       location = current.end();
       return ot::marker;
 
-    } else if (process_options && current.size() >= 2 && current[0] == C &&
-               current[1] != C) {
+    } else if (process_options && current.size() >= 2 &&
+               current[0] == option_char && current[1] != option_char) {
       // Short arg
       buffer.clear();
       location++;
       buffer.push_back(*location++);
       return ot::short_opt;
     }
-    if (process_options && current.size() > 2 && current[0] == C &&
-        current[1] == C) {
+    if (process_options && current.size() > 2 && current[0] == option_char &&
+        current[1] == option_char) {
       // Long option
       buffer.assign(location + 2, current.end());  // ignore dashes
       location = current.end();
@@ -106,7 +181,7 @@ struct ArgReader {
       current.assign(*itr++);
       location = current.begin();
     }
-    if (process_options && current.size() >= 1 && current[0] == C) {
+    if (process_options && current.size() >= 1 && current[0] == option_char) {
       // Got an option, failed
       return false;
 
@@ -153,19 +228,18 @@ struct ArgReader {
 // Help Option
 // -----------
 
-template <char C>
-class HelpFlag : Option<C> {
-  friend class Parser<C>;
+class HelpFlag : Option {
+  friend class Parser;
 
-  const Parser<C>& parser;
+  const Parser& parser;  // Need a reference to print help
 
-  HelpFlag(const Parser<C>& parser_) : Option<C>("help", 'h'), parser(parser_) {
+  HelpFlag(const Parser& parser_) : Option("help", 'h'), parser(parser_) {
     this->help_text = "Show this help message and exit";
   }
 
   std::ostream& format_args(std::ostream& os) override { return os; }
 
-  void parse(ArgReader<C>& reader) override {
+  void parse(ArgReader& reader) override {
     (void)reader;
     std::cout << parser.help() << std::flush;
     exit(0);
@@ -178,22 +252,20 @@ class HelpFlag : Option<C> {
 // Parser Functions
 // ----------------
 
-template <char C>
-Parser<C>::Parser(const std::string& description_, bool enable_help)
+Parser::Parser(const std::string& description_, bool enable_help)
     : description(description_) {
   if (enable_help) {
-    enroll_option(new HelpFlag<C>(*this));
+    enroll_option(new HelpFlag(*this));
   }
 }
 
 // Parsing function works in tandem with ArgReader
-template <char C>
-void Parser<C>::parse(int argc, char** argv) {
+void Parser::parse(int argc, char** argv) {
   if (argc > 0 && !program_name.size()) {  // Assign program name
     program_name = *argv;
   }
 
-  ArgReader<C> reader(usage(), argc, argv);
+  ArgReader reader(usage(), argc, argv);
   auto args = arguments.begin();
   std::string flag;
   ot type;
@@ -240,8 +312,7 @@ void Parser<C>::parse(int argc, char** argv) {
 }
 
 // This is the method to add an option agnostic to everything else
-template <char C>
-void Parser<C>::enroll_option(Option<C>* option) {
+void Parser::enroll_option(Option* option) {
   if (options.find(option->name) != options.end()) {
     throw std::invalid_argument(
         std::string("Can't add two options with the same name: \"") +
@@ -253,94 +324,82 @@ void Parser<C>::enroll_option(Option<C>* option) {
         std::string("Can't add two options with the same short name: '") +
         option->short_name + '\'');
   }
-  options[option->name] = std::move(std::unique_ptr<Option<C>>(option));
+  options[option->name] = std::move(std::unique_ptr<Option>(option));
   if (option->short_name) {
     short_options[option->short_name] = option;
   }
 }
 
 // This is the method to add an argument agnostic to everything else
-template <char C>
-void Parser<C>::enroll_argument(Option<C>* argument) {
-  arguments.push_back(std::move(std::unique_ptr<Option<C>>(argument)));
+void Parser::enroll_argument(Option* argument) {
+  arguments.push_back(std::move(std::unique_ptr<Option>(argument)));
 }
 
 // Get usage formatter
-template <char C>
-typename Parser<C>::UsageFormatter Parser<C>::usage() const {
-  return Parser<C>::UsageFormatter(*this);
+typename Parser::UsageFormatter Parser::usage() const {
+  return Parser::UsageFormatter(*this);
 }
 
 // Get help formatter
-template <char C>
-typename Parser<C>::HelpFormatter Parser<C>::help() const {
-  return Parser<C>::HelpFormatter(*this);
+typename Parser::HelpFormatter Parser::help() const {
+  return Parser::HelpFormatter(*this);
 }
 
 // ------
 // Option
 // ------
 // ABC for all actual options and arguments. Doesn't do anything other than
-// allowing virtual calls and having an interface.
-template <char C>
-class Option {
- public:
-  const std::string name;
-  const char short_name;  // nonexistent if 0
-  std::string help_text;
+// allowing virtual calls and having a minimal interface.
 
-  Option(const std::string& name_, char short_name_)
-      : name(name_), short_name(short_name_) {}
-  virtual ~Option(){};
-  virtual std::ostream& format_args(std::ostream& os) { return os; }
-  virtual void parse(ArgReader<C>& reader) {
-    (void)reader;  // ignore unused argument
-  }
-};
+Option::Option(const std::string& name_, char short_name_)
+    : name(name_), short_name(short_name_) {}
+Option::~Option() {}
+std::ostream& Option::format_args(std::ostream& os) { return os; }
+void Option::parse(ArgReader& reader) {
+  (void)reader;  // ignore unused argument
+}
 
 // ----
 // Flag
 // ----
 // An option with no arguments.
-template <char C>
 template <typename T>
-Flag<C, T>& Parser<C>::add_flag(const std::string& name, char short_name,
-                                T constant, T def) {
-  auto* flag = new Flag<C, T>(name, short_name, constant, def);
+Flag<T>& Parser::add_flag(const std::string& name, char short_name, T constant,
+                          T def) {
+  auto* flag = new Flag<T>(name, short_name, constant, def);
   enroll_option(flag);
   return *flag;
 }
 
-template <char C>
 template <typename T>
-Flag<C, T>& Parser<C>::add_flag(const std::string& name, T constant, T def) {
-  return Parser<C>::add_flag(name, '\0', constant, def);
+Flag<T>& Parser::add_flag(const std::string& name, T constant, T def) {
+  return Parser::add_flag(name, '\0', constant, def);
 }
 
-template <char C, typename T>
-Flag<C, T>::Flag(const std::string& name, char short_name, const T& constant_,
-                 const T& def)
-    : Option<C>(name, short_name), value(def), constant(constant_) {}
+template <typename T>
+Flag<T>::Flag(const std::string& name, char short_name, const T& constant_,
+              const T& def)
+    : Option(name, short_name), value(def), constant(constant_) {}
 
-template <char C, typename T>
-std::ostream& Flag<C, T>::format_args(std::ostream& os) {
+template <typename T>
+std::ostream& Flag<T>::format_args(std::ostream& os) {
   return os;
 }
 
-template <char C, typename T>
-void Flag<C, T>::parse(ArgReader<C>& reader) {
+template <typename T>
+void Flag<T>::parse(ArgReader& reader) {
   (void)reader;  // hide unused warning
   value = constant;
 }
 
-template <char C, typename T>
-Flag<C, T>& Flag<C, T>::help(const std::string& new_string) {
+template <typename T>
+Flag<T>& Flag<T>::help(const std::string& new_string) {
   this->help_text.assign(new_string);
   return *this;
 }
 
-template <char C, typename T>
-const T& Flag<C, T>::get() const {
+template <typename T>
+const T& Flag<T>::get() const {
   return value;
 }
 
@@ -348,47 +407,44 @@ const T& Flag<C, T>::get() const {
 // Argument
 // --------
 // An option or argument with one argument
-template <char C>
 template <typename T>
-Argument<C, T>& Parser<C>::add_optargument(
+Argument<T>& Parser::add_optargument(
     const std::string& name, char short_name, T def,
     const std::function<T(const std::string&)> converter) {
-  auto* optarg = new Argument<C, T>(name, short_name, def, converter);
+  auto* optarg = new Argument<T>(name, short_name, def, converter);
   enroll_option(optarg);
   return *optarg;
 }
 
-template <char C>
 template <typename T>
-Argument<C, T>& Parser<C>::add_optargument(
+Argument<T>& Parser::add_optargument(
     const std::string& name, T def,
     const std::function<T(const std::string&)> converter) {
-  return Parser<C>::add_optargument(name, '\0', def, converter);
+  return Parser::add_optargument(name, '\0', def, converter);
 }
 
-template <char C>
 template <typename T>
-Argument<C, T>& Parser<C>::add_argument(
+Argument<T>& Parser::add_argument(
     const std::string& name,
     const std::function<T(const std::string&)> converter) {
-  auto* arg = new Argument<C, T>(name, '\0', T(), converter);
+  auto* arg = new Argument<T>(name, '\0', T(), converter);
   enroll_argument(arg);
   return *arg;
 }
 
-template <char C, typename T>
-Argument<C, T>::Argument(const std::string& name, char short_name, const T& def,
-                         const std::function<T(const std::string&)>& converter_)
-    : Option<C>(name, short_name), value(def), converter(converter_) {}
+template <typename T>
+Argument<T>::Argument(const std::string& name, char short_name, const T& def,
+                      const std::function<T(const std::string&)>& converter_)
+    : Option(name, short_name), value(def), converter(converter_) {}
 
-template <char C, typename T>
-std::ostream& Argument<C, T>::format_args(std::ostream& os) {
+template <typename T>
+std::ostream& Argument<T>::format_args(std::ostream& os) {
   // One arg is required so surrounded with <>
   return os << " <" << this->name << '>';
 }
 
-template <char C, typename T>
-void Argument<C, T>::parse(ArgReader<C>& reader) {
+template <typename T>
+void Argument<T>::parse(ArgReader& reader) {
   std::string buffer;
   if (reader.next_argument(buffer)) {
     try {
@@ -401,93 +457,16 @@ void Argument<C, T>::parse(ArgReader<C>& reader) {
   }
 }
 
-template <char C, typename T>
-Argument<C, T>& Argument<C, T>::help(const std::string& new_string) {
+template <typename T>
+Argument<T>& Argument<T>::help(const std::string& new_string) {
   this->help_text.assign(new_string);
   return *this;
 }
 
-template <char C, typename T>
-const T& Argument<C, T>::get() const {
+template <typename T>
+const T& Argument<T>::get() const {
   return value;
 }
-
-// ----------------
-// Usage Formatting
-// ----------------
-
-template <char C>
-class Parser<C>::UsageFormatter {
-  friend std::ostream& operator<<(std::ostream& os,
-                                  const UsageFormatter& usage) {
-    return usage.format(os);
-  }
-
-  const Parser<C>& parser;
-  std::ostream& format(std::ostream& os) const {
-    os << "usage: " << parser.program_name;
-    for (const auto& opt : parser.options) {
-      os << " [";
-      if (opt.second->short_name) {
-        os << C << opt.second->short_name;
-      } else {
-        os << C << C << opt.second->name;
-      }
-      opt.second->format_args(os);
-      os << ']';
-    }
-    for (const auto& arg : parser.arguments) {
-      arg->format_args(os);
-    }
-    return os << '\n';
-  }
-
- public:
-  UsageFormatter(const Parser<C>& parser_) : parser(parser_) {}
-};
-// ---------------
-// Help Formatting
-// ---------------
-
-template <char C>
-class Parser<C>::HelpFormatter {
-  friend std::ostream& operator<<(std::ostream& os, const HelpFormatter& help) {
-    return help.format(os);
-  }
-
-  const Parser<C>& parser;
-  const UsageFormatter usage;
-  std::ostream& format(std::ostream& os) const {
-    os << usage << '\n' << parser.description << '\n';
-    if (!parser.arguments.empty()) {
-      os << "\nPositional Arguments:\n";
-      for (const auto& arg : parser.arguments) {
-        os << " ";
-        arg->format_args(os);
-        os << "    " << arg->help_text << '\n';
-      }
-    }
-    if (!parser.options.empty()) {
-      os << "\nOptional Arguments:\n";
-      for (const auto& opt : parser.options) {
-        os << "  ";
-        if (opt.second->short_name) {
-          os << C << opt.second->short_name;
-          opt.second->format_args(os);
-          os << ", ";
-        }
-        os << C << C << opt.second->name;
-        opt.second->format_args(os);
-        os << "    " << opt.second->help_text << '\n';
-      }
-    }
-    return os;
-  }
-
- public:
-  HelpFormatter(const Parser<C>& parser_)
-      : parser(parser_), usage(parser_.usage()) {}
-};
 
 // ---------------------
 // String Interpretation
