@@ -7,7 +7,10 @@ using namespace cpparse;  // Contains all of the parsing objects
 
 int main(int argc, char** argv) {
   // Creates a local parser. These are designed to be stack variables
-  Parser parser("This is a test program with a description!", true);
+  Parser parser(
+      "This is a test program with a description! If descriptions are long "
+      "enough, they'll wrap.",
+      true);
   // They also take a description (default empty) that will be printed when
   // help is printed, and a boolean (default true) for whether to include a
   // help option.
@@ -22,19 +25,26 @@ int main(int argc, char** argv) {
   // Flags default to boolean, but are templated on the type of object they
   // return. Here is a string version without a short name but with a default
   // value
-  auto& string_flag = parser.add_flag<string>("str", "set", "unset");
+  auto& string_flag = parser.add_flag<string>("string", "set", "unset");
 
   // The real usefulness of parsing is to take optional arguments.
   auto& double_opt = parser.add_optargument<double>("double", 'd');
+  double_opt.help(
+      "This option has a long name, so its help goes on a new line.");
   // This takes a default and a converter function for how to interpret the
   // string. Any type that overloads the >> operator has a default converter
   // function.
 
   // Finally, positional arguments can also be added. They function similarly
   // to optional arguments only you can't specify a short name.
-  auto& int_arg = parser.add_argument<int>("int")  //
-                      .help("This integer is required but unused");
+  auto& int_arg = parser.add_argument<int>("integer");
+  int_arg.help(
+      "This integer is required but unused. If descriptions are long enough, "
+      "they also wrap.");
   // All argument types also support adding help text with the `help` method.
+
+  // This extra argument helps show usage indentation
+  parser.add_optargument<>("extra-argument");
 
   // Parse the inputs
   parser.parse(argc, argv);
@@ -43,8 +53,8 @@ int main(int argc, char** argv) {
   // argument objects. In addition to ways to update the arguments, each
   // contains a `get` method to get the value. Before parsing this will be the
   // default, after it will be whatever was specified.
-  cout << "Boolean flag  : " << boolalpha << bool_flag.get() << '\n';
-  cout << "String flag   : " << string_flag.get() << '\n';
-  cout << "Double option : " << double_opt.get() << '\n';
-  cout << "Int argument  : " << int_arg.get() << endl;
+  cout << "Boolean flag   : " << boolalpha << bool_flag.get() << '\n';
+  cout << "String flag    : " << string_flag.get() << '\n';
+  cout << "Double option  : " << double_opt.get() << '\n';
+  cout << "Int argument   : " << int_arg.get() << endl;
 }

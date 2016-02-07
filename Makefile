@@ -14,10 +14,10 @@ help:
 
 all: example readme_example
 
-example: example.cxx cpparse.cxx cpparse.hxx
+example: example.cxx cpparse.cxx cpparse.hxx indent_header.hxx indent.hxx indent.cxx
 	g++ $(CFLAGS) -o $@ $@.cxx
 
-readme_example: readme_example.cxx cpparse.cxx cpparse.hxx
+readme_example: readme_example.cxx cpparse.cxx cpparse.hxx indent_header.hxx indent.hxx indent.cxx
 	g++ $(CFLAGS) -o $@ $@.cxx
 
 test:

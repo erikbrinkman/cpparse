@@ -30,17 +30,17 @@ int main(int argc, char** argv) {
 
 When compiled `./readme_example -h` produces:
 ```
-usage: ./readme_example [-f] [-h] [-n <num>] <string>
+age: ./readme_example [-f] [-h] [-n <num>] <string>
 
 This program just parses command line arguments
 
 Positional Arguments:
-  <string>    This is a required string
+  <string>              This is a required string
 
 Optional Arguments:
-  -f, --flag    Activate flag
-  -h, --help    Show this help message and exit
-  -n <num>, --num <num>    Set a number
+  -f, --flag            Activate flag
+  -h, --help            Show this help message and exit
+  -n <num>, --num <num> Set a number
 ```
 
 This is a work in progress because I was frustrated with the lack of nice C++
@@ -49,6 +49,15 @@ safety. As a result, it is missing quite a few features that you might want for
 your command line needs. I designed this header such that it should be possible
 to add all of the desired functionality, but since it's not implemented yet,
 there are obviously some open questions.
+
+TODO
+----
+
+- Currently some bad things happen when you try to manipulate the Flags /
+  Arguments. This is because of private destructors, so you get a compile
+  error. That's fine, but I'd rather it be more transparent, i.e. only allow
+  passing references to the objects around and preventing copies with a lack of
+  copy constructor and assignment operator.
 
 Unimplemented Features
 ----------------------
@@ -68,7 +77,6 @@ Unimplemented Features
   create a vector, and append the result instead of overwrite. For flags, this
   will only be defined for integral types, and will just count. Error will
   throw an error and exit if a flag is repeated.
-- Add indentation to usage (with terminal width?) (use iostream manipulator).
 - Add operator<< to Parser to allow printing args and values.
 - Disable copy constructor of arguments.
 - Add non manual tests
@@ -81,3 +89,6 @@ Unimplemented Features
 - Add argparse style subparsers. Could be possible by making a Parser also an
   Option type, or doing something in between to take advantage of reused
   functionality.
+- Add `choices` basically limited input that get validated against. Can
+  probably do with initializer lists.
+- Add tools to work with bash completion.

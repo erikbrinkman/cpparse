@@ -10,6 +10,8 @@
 #include <sstream>
 #include <cstdlib>
 
+#include "indent_header.hxx"
+
 namespace cpparse {
 // ----------------
 // Usage Formatting
@@ -23,19 +25,45 @@ class Parser::UsageFormatter {
 
   const Parser& parser;
   std::ostream& format(std::ostream& os) const {
+    unsigned padding = parser.program_name.size() + 8;
+    unsigned max_width = 80;
     os << "usage: " << parser.program_name;
-    for (const auto& opt : parser.options) {
-      os << " [";
-      if (opt.second->short_name) {
-        os << option_char << opt.second->short_name;
-      } else {
-        os << option_char << option_char << opt.second->name;
+    if (padding + 4 >= max_width) {
+      padding = 24;
+      os << '\n';
+      for (unsigned i = 0; i < padding; i++) {
+        os << ' ';
       }
-      opt.second->format_args(os);
-      os << ']';
+    } else {
+      os << ' ';
     }
+
+    indent::Indenter out(os, padding, max_width, padding);
+    std::ostringstream stringify;
+
+    for (const auto& opt : parser.options) {
+      stringify.clear();
+      stringify.str("");
+
+      stringify << '[';
+      if (opt.second->short_name) {
+        stringify << option_char << opt.second->short_name;
+      } else {
+        stringify << option_char << option_char << opt.second->name;
+      }
+      opt.second->format_args(stringify);
+      stringify << ']';
+
+      out << stringify.str();
+    }
+
     for (const auto& arg : parser.arguments) {
-      arg->format_args(os);
+      stringify.clear();
+      stringify.str("");
+
+      arg->format_args(stringify);
+
+      out << stringify.str().substr(1);  // Must start with a space
     }
     return os << '\n';
   }
@@ -55,27 +83,108 @@ class Parser::HelpFormatter {
   const Parser& parser;
   const UsageFormatter usage;
   std::ostream& format(std::ostream& os) const {
-    os << usage << '\n' << parser.description << '\n';
+    unsigned max_width = 80;
+    unsigned padding = 24;
+    std::istringstream words;
+    std::string word;
+
+    // Usage
+    os << usage << '\n';
+
+    // Description
+    words.str(parser.description);
+    words.clear();
+    indent::Indenter desc(os, 0, max_width, 0);
+    while (words >> word) {
+      desc << word;
+    }
+    os << '\n';
+
+    // Positional Arguments
     if (!parser.arguments.empty()) {
       os << "\nPositional Arguments:\n";
+
       for (const auto& arg : parser.arguments) {
-        os << " ";
-        arg->format_args(os);
-        os << "    " << arg->help_text << '\n';
+        // Print out name
+        std::ostringstream buffer;
+        buffer << ' ';
+        arg->format_args(buffer);
+        os << buffer.str();
+
+        if (arg->help_text.empty()) {
+          // Don't add spaces if no help to render
+          os << '\n';
+          continue;
+        }
+
+        // Align help text
+        unsigned length = buffer.tellp();
+        if (length + 1 <= padding) {
+          for (unsigned i = 0; i < (padding - length); i++) {
+            os << ' ';
+          }
+        } else {
+          os << '\n';
+          for (unsigned i = 0; i < padding; i++) {
+            os << ' ';
+          }
+        }
+
+        // Print out help text
+        indent::Indenter pos(os, padding, max_width, padding);
+        words.str(arg->help_text);
+        words.clear();
+        while (words >> word) {
+          pos << word;
+        }
+        os << '\n';
       }
     }
+
+    // Optional Arguments
     if (!parser.options.empty()) {
       os << "\nOptional Arguments:\n";
+
       for (const auto& opt : parser.options) {
-        os << "  ";
+        // Print out name
+        std::ostringstream buffer;
+        buffer << "  ";
         if (opt.second->short_name) {
-          os << option_char << opt.second->short_name;
-          opt.second->format_args(os);
-          os << ", ";
+          buffer << option_char << opt.second->short_name;
+          opt.second->format_args(buffer);
+          buffer << ", ";
         }
-        os << option_char << option_char << opt.second->name;
-        opt.second->format_args(os);
-        os << "    " << opt.second->help_text << '\n';
+        buffer << option_char << option_char << opt.second->name;
+        opt.second->format_args(buffer);
+        os << buffer.str();
+
+        if (opt.second->help_text.empty()) {
+          // Don't add spaces is no help to render
+          os << '\n';
+          continue;
+        }
+
+        // Align help text
+        unsigned length = buffer.tellp();
+        if (length + 1 <= padding) {
+          for (unsigned i = 0; i < (padding - length); i++) {
+            os << ' ';
+          }
+        } else {
+          os << '\n';
+          for (unsigned i = 0; i < padding; i++) {
+            os << ' ';
+          }
+        }
+
+        // Print out help text
+        indent::Indenter pos(os, padding, max_width, padding);
+        words.str(opt.second->help_text);
+        words.clear();
+        while (words >> word) {
+          pos << word;
+        }
+        os << '\n';
       }
     }
     return os;
@@ -353,8 +462,11 @@ typename Parser::HelpFormatter Parser::help() const {
 
 Option::Option(const std::string& name_, char short_name_)
     : name(name_), short_name(short_name_) {}
+
 Option::~Option() {}
+
 std::ostream& Option::format_args(std::ostream& os) { return os; }
+
 void Option::parse(ArgReader& reader) {
   (void)reader;  // ignore unused argument
 }
