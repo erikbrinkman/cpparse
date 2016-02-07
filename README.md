@@ -50,15 +50,6 @@ your command line needs. I designed this header such that it should be possible
 to add all of the desired functionality, but since it's not implemented yet,
 there are obviously some open questions.
 
-TODO
-----
-
-- Currently some bad things happen when you try to manipulate the Flags /
-  Arguments. This is because of private destructors, so you get a compile
-  error. That's fine, but I'd rather it be more transparent, i.e. only allow
-  passing references to the objects around and preventing copies with a lack of
-  copy constructor and assignment operator.
-
 Unimplemented Features
 ----------------------
 
@@ -78,7 +69,6 @@ Unimplemented Features
   will only be defined for integral types, and will just count. Error will
   throw an error and exit if a flag is repeated.
 - Add operator<< to Parser to allow printing args and values.
-- Disable copy constructor of arguments.
 - Add non manual tests
 - Would love to have a compile time error thrown if two arguments share a name or short_name
 - Not sure if I want help to print in addition order or sorted. In order would

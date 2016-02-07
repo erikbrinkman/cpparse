@@ -20,8 +20,8 @@ example: example.cxx cpparse.cxx cpparse.hxx indent_header.hxx indent.hxx indent
 readme_example: readme_example.cxx cpparse.cxx cpparse.hxx indent_header.hxx indent.hxx indent.cxx
 	g++ $(CFLAGS) -o $@ $@.cxx
 
-test:
-	@echo "No tests yet :(" && false
+test: .PHONY
+	$(MAKE) -C test test
 
 format: $(SOURCES)
 	clang-format-3.7 -i -style=Google $(SOURCES)
@@ -30,3 +30,5 @@ todo: $(SOURCES)
 	@grep --color=always XXX $(SOURCES) || true
 	@grep --color=always TODO $(SOURCES) || true
 	@grep --color=always FIXME $(SOURCES) || true
+
+.PHONY:

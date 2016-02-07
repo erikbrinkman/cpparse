@@ -88,15 +88,17 @@ class Parser {
 // Option
 // Abstract base class of all ways to get input data
 class Option {
+ protected:
+  Option(const std::string& name, char short_name);
+
  public:
   const std::string name;
   const char short_name;  // nonexistent if 0
   std::string help_text;
 
-  Option(const std::string& name, char short_name);
   virtual ~Option();
-  virtual std::ostream& format_args(std::ostream& os);
   virtual void parse(ArgReader& reader);
+  virtual std::ostream& format_args(std::ostream& os);
 };
 
 // Flag (no arguments)
@@ -119,6 +121,10 @@ class Flag : Option {
   const T& get() const;
   // Set the help text of this option
   Flag& help(const std::string& new_help);
+
+  // Non-copyable
+  Flag& operator=(const Flag& copy) = delete;
+  Flag(const Flag& copy) = delete;
 };
 
 // Argument (one argument)
@@ -140,6 +146,10 @@ class Argument : Option {
   const T& get() const;
   // See Flag
   Argument& help(const std::string& new_help);
+
+  // Non-copyable
+  Argument& operator=(const Argument& copy) = delete;
+  Argument(const Argument& copy) = delete;
 };
 }
 
