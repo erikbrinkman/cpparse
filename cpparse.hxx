@@ -26,6 +26,8 @@ template <typename T>
 class Flag;
 template <typename T>
 class Argument;
+template <typename T>
+class Arguments;
 
 // Parser object
 // This controls all of the parsing, and is the main point of api entry
@@ -150,6 +152,31 @@ class Argument : Option {
   // Non-copyable
   Argument& operator=(const Argument& copy) = delete;
   Argument(const Argument& copy) = delete;
+};
+
+// Arguments (variable number of arguments)
+template <typename T>
+class Arguments : Option {
+  friend class Parser;
+  std::vector<T> values;
+  const std::function<T(const std::string&)> converter;
+
+  Arguments(const std::string& name, char short_name, unsigned min, unsigned max,
+           const std::function<T(const std::string&)>& converter);
+  std::ostream& format_args(std::ostream& os) override;
+  void parse(ArgReader& reader) override;
+
+  ~Arguments() override{};
+
+ public:
+  // See Flag
+  const T& get() const;
+  // See Flag
+  Arguments& help(const std::string& new_help);
+
+  // Non-copyable
+  Arguments& operator=(const Arguments& copy) = delete;
+  Arguments(const Arguments& copy) = delete;
 };
 }
 
