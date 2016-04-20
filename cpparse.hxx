@@ -5,130 +5,168 @@
 #include <map>
 #include <vector>
 #include <string>
+#include <functional>
+#include <initializer_list>
 
 namespace cpparse {
 
-// '-' is used to signify optional arguments
-static const char option_char = '-';
-
 // Default conversion of strings to types
-template <typename T>
+template <class T>
 T read(const std::string& input);
-
-template <>
-std::string read<std::string>(const std::string& input);
 
 // Option classes and supporting classes
 // Option is an ABC that allows easy storage of all types
-class ArgReader;
 class Option;
-template <typename T>
+template <class T>
 class Flag;
-template <typename T>
-class Argument;
-template <typename T>
-class Arguments;
+template <class T>
+class AggFlag;
+template <class T>
+class SingleOption;
+
+class ArgReader;
 
 // Parser object
 // This controls all of the parsing, and is the main point of api entry
 class Parser {
-  std::map<std::string, std::unique_ptr<Option>> options;
-  std::map<char, Option*> short_options;
-  std::vector<std::unique_ptr<Option>> arguments;
-
-  std::string program_name;
-  std::string description;
-
-  void enroll_option(Option* option);
-  void enroll_argument(Option* argument);
-
  public:
   // Classes that overload << to allow easy formatting of help and usage in
   // streams
   class UsageFormatter;
   class HelpFormatter;
 
-  // Only constructor
-  Parser(const std::string& description = "", bool enable_help = true);
+  Parser& description(const std::string& new_description);
+
+  void parse(int argc, char** argv);
+  UsageFormatter usage() const;
+  HelpFormatter help() const;
 
   // Add a flag (no arguments) with a short name
   template <typename T = bool>
-  Flag<T>& add_flag(const std::string& name, char short_name, T constant,
-                    T def = T());
+  Flag<T>& add_flag(const std::initializer_list<std::string>& names,
+                    const T& constant, const T& def = T());
 
-  // Add a flag (no arguments) without a short name
-  template <typename T = bool>
-  Flag<T>& add_flag(const std::string& name, T constant, T def = T());
+  template <typename T = unsigned>
+  AggFlag<T>& add_agg_flag(
+      const std::initializer_list<std::string>& names, const T& constant,
+      const T& def = T(),
+      const std::function<T(const T&, const T&)>& aggregator = std::plus<T>());
 
-  // Add an optional argument (one arg) not required
   template <typename T = std::string>
-  Argument<T>& add_optargument(
-      const std::string& name, char short_name, T def = T(),
-      const std::function<T(const std::string&)> converter = read<T>);
+  SingleOption<T>& add_option(
+      const std::initializer_list<std::string>& names, const T& def = T(),
+      const std::function<T(const std::string&)>& converter = read<T>);
 
-  // Add an optional argument (one arg) not required
-  template <typename T = std::string>
-  Argument<T>& add_optargument(
-      const std::string& name, T def = T(),
-      const std::function<T(const std::string&)> converter = read<T>);
+ private:
+  std::vector<std::unique_ptr<Option>> options;
+  std::map<std::string, Option*> long_options;
+  std::map<char, Option*> short_options;
+  std::vector<std::unique_ptr<Option>> arguments;
 
-  // A mandatory positional argument
-  template <typename T = std::string>
-  Argument<T>& add_argument(
-      const std::string& name,
-      const std::function<T(const std::string&)> converter = read<T>);
-
-  // Call this after adding all of the options
-  void parse(int argc, char** argv);
-
-  // Objects that overload <<
-  // i.e. to print help `cout << parser.help();`
-  UsageFormatter usage() const;
-  HelpFormatter help() const;
+  std::string program_name;
+  std::string description_text;
 };
 
 // Option
-// Abstract base class of all ways to get input data
 class Option {
- protected:
-  Option(const std::string& name, char short_name);
-
  public:
-  const std::string name;
-  const char short_name;  // nonexistent if 0
-  std::string help_text;
-
-  virtual ~Option();
-  virtual void parse(ArgReader& reader);
-  virtual std::ostream& format_args(std::ostream& os);
+  virtual void parse(ArgReader&) = 0;
+  virtual std::string short_usage() = 0;
+  virtual std::string long_usage() = 0;
+  virtual std::string help() = 0;
 };
 
 // Flag (no arguments)
-// Visible api is basically the same to every type
 template <typename T>
-class Flag : Option {
-  friend class Parser;
-  T value;
-  const T constant;
-
-  Flag(const std::string& name, char short_name, const T& constant,
-       const T& def);
-  std::ostream& format_args(std::ostream& os) override;
-  void parse(ArgReader& reader) override;
-
-  ~Flag() override{};
-
+class Flag : public Option {
  public:
-  // Get the value pre or post parsing
   const T& get() const;
-  // Set the help text of this option
   Flag& help(const std::string& new_help);
 
   // Non-copyable
   Flag& operator=(const Flag& copy) = delete;
   Flag(const Flag& copy) = delete;
+
+  // Used by parser
+  Flag(const std::vector<char>& short_names,
+       const std::vector<std::string>& long_names, const T& constant,
+       const T& def);
+
+  void parse(ArgReader& reader) override;
+  std::string short_usage() override;
+  std::string long_usage() override;
+  std::string help() override;
+
+ private:
+  T value;
+  const T constant;
+  std::string short_usage_text;
+  std::string long_usage_text;
+  std::string help_text;
 };
 
+// AggFlag (no arguments, multiple calls aggregate)
+template <typename T>
+class AggFlag : public Option {
+ public:
+  const T& get() const;
+  AggFlag& help(const std::string& new_help);
+
+  // Non-copyable
+  AggFlag& operator=(const AggFlag& copy) = delete;
+  AggFlag(const AggFlag& copy) = delete;
+
+  // Used by parser
+  AggFlag(const std::vector<char>& short_names,
+          const std::vector<std::string>& long_names, const T& constant,
+          const T& def, const std::function<T(const T&, const T&)>& aggregator);
+
+  void parse(ArgReader& reader) override;
+  std::string short_usage() override;
+  std::string long_usage() override;
+  std::string help() override;
+
+ private:
+  T value;
+  const T constant;
+  const std::function<T(const T&, const T&)> aggregator;
+  std::string short_usage_text;
+  std::string long_usage_text;
+  std::string help_text;
+};
+
+// SingleOption (one argument)
+template <typename T>
+class SingleOption : public Option {
+ public:
+  const T& get() const;
+  SingleOption& help(const std::string& new_help);
+  SingleOption& meta_var(const std::string& meta_var);
+
+  // Non-copyable
+  SingleOption& operator=(const SingleOption&) = delete;
+  SingleOption(const SingleOption&) = delete;
+
+  // Used by parser
+  SingleOption(const std::vector<char>& short_names,
+               const std::vector<std::string>& long_names, const T& def,
+               const std::function<T(const std::string&)>& converter);
+
+  void parse(ArgReader& reader) override;
+  std::string short_usage() override;
+  std::string long_usage() override;
+  std::string help() override;
+
+ private:
+  T value;
+  const std::function<T(const std::string&)> converter;
+  std::string meta_var_text;
+  std::string help_text;
+  const std::vector<char> short_names;
+  const std::vector<std::string> long_names;
+};
+
+/*
 // Argument (one argument)
 template <typename T>
 class Argument : Option {
@@ -161,7 +199,8 @@ class Arguments : Option {
   std::vector<T> values;
   const std::function<T(const std::string&)> converter;
 
-  Arguments(const std::string& name, char short_name, unsigned min, unsigned max,
+  Arguments(const std::string& name, char short_name, unsigned min, unsigned
+max,
            const std::function<T(const std::string&)>& converter);
   std::ostream& format_args(std::ostream& os) override;
   void parse(ArgReader& reader) override;
@@ -177,6 +216,32 @@ class Arguments : Option {
   // Non-copyable
   Arguments& operator=(const Arguments& copy) = delete;
   Arguments(const Arguments& copy) = delete;
+};
+*/
+
+class Parser::UsageFormatter {
+ public:
+  UsageFormatter(const Parser&);
+
+ private:
+  const Parser& parser;
+
+  friend std::ostream& operator<<(std::ostream& os,
+                                  const UsageFormatter& usage);
+
+  std::ostream& format(std::ostream& os) const;
+};
+
+class Parser::HelpFormatter {
+ public:
+  HelpFormatter(const Parser&);
+
+ private:
+  const Parser& parser;
+
+  friend std::ostream& operator<<(std::ostream& os, const HelpFormatter& usage);
+
+  std::ostream& format(std::ostream& os) const;
 };
 }
 
