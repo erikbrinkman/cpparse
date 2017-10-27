@@ -20,8 +20,6 @@ class Option;
 template <class T>
 class Flag;
 template <class T>
-class AggFlag;
-template <class T>
 class SingleOption;
 
 class ArgReader;
@@ -44,13 +42,9 @@ class Parser {
   // Add a flag (no arguments) with a short name
   template <typename T = bool>
   Flag<T>& add_flag(const std::initializer_list<std::string>& names,
-                    const T& constant, const T& def = T());
-
-  template <typename T = unsigned>
-  AggFlag<T>& add_agg_flag(
-      const std::initializer_list<std::string>& names, const T& constant,
-      const T& def = T(),
-      const std::function<T(const T&, const T&)>& aggregator = std::plus<T>());
+                    const T& constant, const T& def = T(),
+                    const std::function<T(const T&, const T&)>& aggregator =
+                        [](const T& a, const T& b) -> T { return b });
 
   template <typename T = std::string>
   SingleOption<T>& add_option(
@@ -90,7 +84,7 @@ class Flag : public Option {
   // Used by parser
   Flag(const std::vector<char>& short_names,
        const std::vector<std::string>& long_names, const T& constant,
-       const T& def);
+       const T& def, const std::function<T(const T&, const T&)>& aggregator);
 
   void parse(ArgReader& reader) override;
   std::string short_usage() override;
@@ -99,37 +93,8 @@ class Flag : public Option {
 
  private:
   T value;
-  const T constant;
-  std::string short_usage_text;
-  std::string long_usage_text;
-  std::string help_text;
-};
-
-// AggFlag (no arguments, multiple calls aggregate)
-template <typename T>
-class AggFlag : public Option {
- public:
-  const T& get() const;
-  AggFlag& help(const std::string& new_help);
-
-  // Non-copyable
-  AggFlag& operator=(const AggFlag& copy) = delete;
-  AggFlag(const AggFlag& copy) = delete;
-
-  // Used by parser
-  AggFlag(const std::vector<char>& short_names,
-          const std::vector<std::string>& long_names, const T& constant,
-          const T& def, const std::function<T(const T&, const T&)>& aggregator);
-
-  void parse(ArgReader& reader) override;
-  std::string short_usage() override;
-  std::string long_usage() override;
-  std::string help() override;
-
- private:
-  T value;
-  const T constant;
-  const std::function<T(const T&, const T&)> aggregator;
+  T constant;
+  std::function<T(const T&, const T&)> aggregator;
   std::string short_usage_text;
   std::string long_usage_text;
   std::string help_text;

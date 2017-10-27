@@ -10,7 +10,7 @@ int main(int argc, char** argv) {
   parser.description("An example parser.");
   auto& all = parser.add_flag({"-a", "--all", "--alias"}, true);
   all.help("Sets the all flag to true.");
-  auto& verbose = parser.add_agg_flag({"-v", "--verbose"}, 1);
+  auto& verbose = parser.add_flag({"-v", "--verbose"}, 1, 0, plus<int>());
   verbose.help("Sets verbosity. Set multiple times for more verbosity.");
   auto& integer = parser.add_option<int>({"-i", "--integer"}).meta_var("int");
   parser.parse(argc, argv);

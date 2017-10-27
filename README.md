@@ -1,6 +1,14 @@
 Cpparse (see-plus-parse)
 ========================
 
+FIXME TODO Don't push this!
+---------------------------
+
+- Merge agg flag and flag, just have an option for how multiple arguments are specified.
+- Find a way to get files to work, e.g. unique_ptr<istream>?
+
+
+
 A posix style command line parser header for C++. Options are similar to
 pythons argparse but built from the ground up to work with modern C++ style
 guidelines.

@@ -186,7 +186,8 @@ enum class ot { end, argument, short_opt, long_opt, marker };
 
 // Actual ArgReader
 class ArgReader {
-// FIXME Parse long options with = syntax. Make sure to throw error on next flag if equals bit is set.
+  // FIXME Parse long options with = syntax. Make sure to throw error on next
+  // flag if equals bit is set.
  public:
   ArgReader(typename Parser::UsageFormatter usage_, int argc, char** argv)
       : itr(argv + 1),
@@ -280,9 +281,9 @@ class ArgReader {
 
   template <class T>
   void parse_error(const std::string& argument) {
-    std::cerr << "Parse error trying to interpret argument of \""
-              << last_flag << "\" \"" << argument << "\" as an \""
-              << typeid(T).name() << "\"\n" << usage << std::flush;
+    std::cerr << "Parse error trying to interpret argument of \"" << last_flag
+              << "\" \"" << argument << "\" as an \"" << typeid(T).name()
+              << "\"\n" << usage << std::flush;
     exit(1);
   }
 
@@ -499,8 +500,9 @@ void register_option(Option* option, const std::vector<char> short_names,
 // ----------------------------------
 
 template <class T>
-Flag<T>& Parser::add_flag(const std::initializer_list<std::string>& names,
-                          const T& constant, const T& def) {
+Flag<T>& Parser::add_flag(
+    const std::initializer_list<std::string>& names, const T& constant,
+    const T& def, const std::function<T(const T&, const T&)>& aggregator) {
   std::vector<char> short_names;
   std::vector<std::string> long_names;
   parse_names(names, short_names, long_names);
@@ -582,7 +584,6 @@ const T& Flag<T>::get() const {
 template <class T>
 AggFlag<T>& Parser::add_agg_flag(
     const std::initializer_list<std::string>& names, const T& constant,
-    const T& def, const std::function<T(const T&, const T&)>& aggregator) {
   std::vector<char> short_names;
   std::vector<std::string> long_names;
   parse_names(names, short_names, long_names);
@@ -699,13 +700,16 @@ SingleOption<T>::SingleOption(
     const std::vector<char>& short_names_,
     const std::vector<std::string>& long_names_, const T& def,
     const std::function<T(const std::string&)>& converter_)
-    : value(def), converter(converter_), short_names(short_names_), long_names(long_names_) {
-      if (!long_names.empty()) {
-        meta_var_text = long_names[0];
-      } else {
-        meta_var_text = short_names[0];
-      }
-    }
+    : value(def),
+      converter(converter_),
+      short_names(short_names_),
+      long_names(long_names_) {
+  if (!long_names.empty()) {
+    meta_var_text = long_names[0];
+  } else {
+    meta_var_text = short_names[0];
+  }
+}
 
 template <typename T>
 void SingleOption<T>::parse(ArgReader& reader) {
@@ -751,7 +755,11 @@ std::string SingleOption<T>::long_usage() {
     if (!first) {
       usage.append(", ");
     }
-    usage.append("--").append(name).append(" <").append(meta_var_text).push_back('>');
+    usage.append("--")
+        .append(name)
+        .append(" <")
+        .append(meta_var_text)
+        .push_back('>');
     first = false;
   }
   return usage;
@@ -853,5 +861,4 @@ std::string read<std::string>(const std::string& input) {
 }
 
 // FIXME Add File Specialization / maybe someway to return cin cout?
-
 }

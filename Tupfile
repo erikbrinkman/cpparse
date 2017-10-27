@@ -1,0 +1,10 @@
+.gitignore
+
+CFLAGS = -std=c++14 -O3 -Werror -Wall -Wextra -pedantic
+!CC = |> ^ CC %f -> %o^ g++ $(CFLAGS) -o %o %f |> %B
+
+#: example.cxx |> !CC |>
+: readme_example.cxx |> !CC |>
+
+# FIXME remove
+: test_c.cxx |> !CC |>
